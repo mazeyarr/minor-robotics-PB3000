@@ -1,10 +1,18 @@
 #include <TimerOne.h>
+#include <SoftwareSerial.h>
 
-#define TIMER_US 100000                         // 100mS set timer duration in microseconds 
-#define TICK_COUNTS 10                          // 1S worth of timer ticks
+#define TIMER_100MS 100000                         // 100mS set timer duration in microseconds 
 
-volatile long timerTickCount = TICK_COUNTS;
+#define TIMER_500MS_TICK_COUNTS 5                  // 500MS worth of timer ticks
+#define TIMER_1S_TICK_COUNTS 10                   // 1S worth of timer ticks
+
+volatile long timer500MSTickCount = TIMER_500MS_TICK_COUNTS;
+volatile bool in500MSRoutineISR = false;
+
+volatile long timer1STickCount = TIMER_1S_TICK_COUNTS;
 volatile bool in1SRoutineISR = false;
+
+// ----------------- END TIMER ----------------- //
 
 #define  MOTOR_ENABLE_PIN 4
 #define  MOTOR_1_POTMETER A0
@@ -18,8 +26,8 @@ int motor2Speed = 0;
 
 // ----------------- END MOTOR ----------------- //
 
-#define  DISTANCE_SENSOR_ECHO_PIN 2
-#define  DISTANCE_SENSOR_TRIGGER_PIN 3
+#define  DISTANCE_SENSOR_ECHO_PIN 7
+#define  DISTANCE_SENSOR_TRIGGER_PIN 8
 
 long distanceSensorDuration;
 int distanceSensorDistance;
@@ -34,10 +42,10 @@ int distanceSensorDistance;
 
 
 void setup() {
- Serial.begin(9600);
-
- Timer1.initialize(TIMER_US);                  // Initialise timer 1
- Timer1.attachInterrupt( timerIsr );           // attach the ISR routine here
+ initBluetooth();
+ 
+ Timer1.initialize(TIMER_100MS);                  // Initialise timer 1
+ Timer1.attachInterrupt( timerISR );           // attach the ISR routine here
 
  setupDistanceSensor();
  setupMotors();
@@ -45,8 +53,6 @@ void setup() {
 }
 
 void loop() {
-  toggleMotor(LOW);
-  
   motor1Speed = map(analogRead(MOTOR_1_POTMETER), 0, 1024, 0, 255);
   motor2Speed = map(analogRead(MOTOR_2_POTMETER), 0, 1024, 0, 255);
 
@@ -55,19 +61,41 @@ void loop() {
 }
 
 // --------------------------
-// timerIsr() 100 milli second interrupt ISR()
+// timerISR() 100 milli second interrupt ISR()
 // Called every time the hardware timer 1 times out.
 // --------------------------
-void timerIsr()
+void timerISR()
 {    
-    if (!(--timerTickCount))
-    {
-      Serial.println("call routine!");
-      timerTickCount = TICK_COUNTS;
+    if (!(--timer500MSTickCount)) {
+      timer500MSTickCount = TIMER_500MS_TICK_COUNTS;
+      routineISR_500MS();
+    }
+    
+    if (!(--timer1STickCount)) {
+      timer1STickCount = TIMER_1S_TICK_COUNTS;
       routineISR_1S();
     }
 }
 
+// --------------------------
+// routineISR_1S() 1 second routine
+// Called every time the count gets to 1S
+// --------------------------
+void routineISR_500MS()
+{
+    if (in500MSRoutineISR) {
+      return;
+    }
+    
+    in500MSRoutineISR = true;
+
+    interrupts();
+
+    updateSerial(); 
+    
+    noInterrupts();
+    in500MSRoutineISR = false;
+}
 
 // --------------------------
 // routineISR_1S() 1 second routine
@@ -80,37 +108,35 @@ void routineISR_1S()
     }
     
     in1SRoutineISR = true;
-    
-    volatile long i;
 
     interrupts();
 
-    digitalWrite(DISTANCE_SENSOR_TRIGGER_PIN, LOW);
-    delayMicroseconds(2);
-
-    digitalWrite(DISTANCE_SENSOR_TRIGGER_PIN, HIGH);
-    delayMicroseconds(10);
-    digitalWrite(DISTANCE_SENSOR_TRIGGER_PIN, LOW);
-
-    distanceSensorDuration = pulseIn(DISTANCE_SENSOR_ECHO_PIN, HIGH);
-    distanceSensorDistance = distanceSensorDuration * 0.034 / 2;
-
-    if (distanceSensorDistance < 10) {
-      signalColor(255, 0, 0);
-      
-      Serial.print("[Warning] Distance: ");
-      Serial.print(distanceSensorDistance);
-      Serial.println(" CM");
-      
-      toggleMotor(LOW); // toggle both motors
-    } else {
-      signalColor(0, 255, 0);
-      
-      toggleMotor(HIGH); // toggle both motors
-    }
+    isDangerClose();
    
     noInterrupts();
     in1SRoutineISR = false;
+}
+
+void isDangerClose() {
+  digitalWrite(DISTANCE_SENSOR_TRIGGER_PIN, LOW);
+  delayMicroseconds(2);
+
+  digitalWrite(DISTANCE_SENSOR_TRIGGER_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(DISTANCE_SENSOR_TRIGGER_PIN, LOW);
+
+  distanceSensorDuration = pulseIn(DISTANCE_SENSOR_ECHO_PIN, HIGH);
+  distanceSensorDistance = distanceSensorDuration * 0.034 / 2;
+
+  if (distanceSensorDistance < 10) {
+    signalColor(255, 0, 0);
+    
+    toggleMotor(LOW); // toggle both motors
+  } else {
+    signalColor(0, 255, 0);
+    
+    toggleMotor(HIGH); // toggle both motors
+  }  
 }
 
 void setupMotors() {
