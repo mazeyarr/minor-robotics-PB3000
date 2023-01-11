@@ -1,49 +1,42 @@
-#define SWITCH_MODE_BUTTON 12
 
-int modeButtonState;            // the current reading from the input pin
-int lastModeButtonState = LOW;  // the previous reading from the input pin
+String currentMode = "ANALOG";
+
+int modeButtonState;            // the current currentButtonReading from the input pin
+int lastModemodeButtonState = LOW;  // the previous currentButtonReading from the input pin
 
 unsigned long lastDebounceTime = 0;  // the last time the output pin was toggled
-unsigned long debounceDelay = 50;    // the debounce time; increase if the output flickers
+unsigned long debounceDelay = 50;
 
-
-currentMode = "analog";
-
-void initModeButton() {
-  pinMode(SWITCH_MODE_BUTTON, INPUT);
+void setupModeButton() {
+  pinMode(MODE_BUTTON_PIN, INPUT_PULLUP);  
 }
 
 void checkMode() {
-  // read the state of the switch into a local variable:
-  int reading = digitalRead(SWITCH_MODE_BUTTON);
-
-  // check to see if you just pressed the button
-  // (i.e. the input went from LOW to HIGH), and you've waited long enough
-  // since the last press to ignore any noise:
-
-  // If the switch changed, due to noise or pressing:
-  if (reading != lastModeButtonState) {
-    // reset the debouncing timer
+  int currentButtonReading = digitalRead(MODE_BUTTON_PIN);
+  
+  if(currentButtonReading == HIGH && lastModemodeButtonState == LOW && millis() - lastDebounceTime > debounceDelay)
+  {
     lastDebounceTime = millis();
-  }
 
-  if ((millis() - lastDebounceTime) > debounceDelay) {
-    if (reading != modeButtonState) {
-      modeButtonState = reading;
-
-      if (modeButtonState == HIGH) {
-        toggleMode();
-      }
-    }
+    toggleMode();
   }
+  
+  lastModemodeButtonState = currentButtonReading;
+}
+
+bool isAnalogMode() {
+  return currentMode == "ANALOG";
+}
+
+bool isBTMode() {
+  return currentMode == "BT";
 }
 
 void toggleMode() {
-  if (currentMode == "analog") {
-    currentMode = "bluetooth"
-  }
-
-  if (currentMode == "bluetooth") {
-    currentMode = "analog"
+  if(isAnalogMode()) {
+    currentMode = "BT";
+  } else if(isBTMode()) {
+    resetBluetooth();
+    currentMode = "ANALOG";
   }
 }

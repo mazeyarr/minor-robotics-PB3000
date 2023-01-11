@@ -14,6 +14,10 @@ volatile bool in1SRoutineISR = false;
 
 // ----------------- END TIMER ----------------- //
 
+#define MODE_BUTTON_PIN 13
+
+// ----------------- END MODE BUTTONS ----------------- //
+
 #define  MOTOR_ENABLE_PIN 4
 #define  MOTOR_1_POTMETER A0
 #define  MOTOR_1_PWM_PIN 5
@@ -50,11 +54,28 @@ void setup() {
  setupDistanceSensor();
  setupMotors();
  setupSignalLeds();
+ setupModeButton();
 }
 
 void loop() {
-  motor1Speed = map(analogRead(MOTOR_1_POTMETER), 0, 1024, 0, 255);
-  motor2Speed = map(analogRead(MOTOR_2_POTMETER), 0, 1024, 0, 255);
+  checkMode();
+
+  if(isAnalogMode()) {    
+    motor1Speed = map(analogRead(MOTOR_1_POTMETER), 0, 1024, 0, 255);
+    motor2Speed = map(analogRead(MOTOR_2_POTMETER), 0, 1024, 0, 255); 
+  } 
+
+  if(isBTMode()) {
+    if(isCommandSet() && hasCommandValue()) {
+      if(getCommandState() == "motor1") {
+        motor1Speed = getCommandValue().toInt();
+      }
+
+      if(getCommandState() == "motor2") {
+        motor2Speed = getCommandValue().toInt();
+      }
+    }
+  }
 
   analogWrite(MOTOR_1_PWM_PIN, motor1Speed);
   analogWrite(MOTOR_2_PWM_PIN, motor2Speed);
@@ -90,6 +111,14 @@ void routineISR_500MS()
     in500MSRoutineISR = true;
 
     interrupts();
+
+    if(isAnalogMode()) {
+      signalColor(255, 255, 0);  
+    }
+
+    if(isBTMode()) {
+      signalColor(0, 0, 255);
+    }
 
     updateSerial(); 
     

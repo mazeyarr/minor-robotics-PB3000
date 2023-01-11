@@ -20,25 +20,35 @@ void initBluetooth() {
   sendCommand("AT+NAMEPADEL_SHOOTER"); 
 }
 
-void updateSerial() {
-  signalColor(0, 0, 255);
-    
+void updateSerial() {     
   if (bluetoothSerial.available()) {
     String command = bluetoothSerial.readString();
-    Serial.println(commandState); 
 
     if(command.startsWith("state:")) {
-      int index = command.indexOf(':');
+      int index = command.indexOf(':') + 1;
+
+      if(command.startsWith("state: ")) {
+        index = index +1;
+      }
       
       commandValue = "";
       commandState = command.substring(index, command.length());
     }
 
     if(command.startsWith("set:")) {
-      int index = command.indexOf(':');
+      int index = command.indexOf(':') + 1;
+
+      if(command.startsWith("set: ") ){
+        index = index +1;
+      }
 
       commandValue = command.substring(index, command.length());
     }
+
+    Serial.print("BT: ");
+    Serial.print(commandState);
+    Serial.print(" : ");
+    Serial.println(commandValue);
   }
 
 // Enable if we need to send back information...
@@ -47,12 +57,21 @@ void updateSerial() {
 //  }
 }
 
+void resetBluetooth() {
+  commandState = "";
+  commandValue = "";
+}
+
 bool isCommandSet() {
   return commandState != "" && commandValue != "";  
 }
 
 String getCommandState() {
   return commandState;  
+}
+
+bool hasCommandValue() {
+  return getCommandValue() != "";   
 }
 
 String getCommandValue() {
