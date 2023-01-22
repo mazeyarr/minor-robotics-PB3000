@@ -1,4 +1,3 @@
-
 String currentMode = "ANALOG";
 
 int modeButtonState;            // the current currentButtonReading from the input pin

@@ -78,6 +78,10 @@ String getCommandValue() {
   return commandValue;  
 }
 
+void resetCommandValue() {
+  commandValue = "";  
+}
+
 void sendCommand(const char * command) {
   Serial.print("Command send :");
   Serial.println(command);

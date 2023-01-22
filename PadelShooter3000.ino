@@ -1,5 +1,6 @@
 #include <TimerOne.h>
 #include <SoftwareSerial.h>
+#include<Wire.h>
 
 #define TIMER_100MS 100000                         // 100mS set timer duration in microseconds 
 
@@ -30,6 +31,19 @@ int motor2Speed = 0;
 
 // ----------------- END MOTOR ----------------- //
 
+#define  MOTOR_ANGLE_UP_PWM_PIN 9
+#define  MOTOR_ANGLE_DOWN_PWM_PIN 10
+
+// ----------------- END ANGLE MOTOR ----------------- //
+
+#define  MOTOR_FEED_PIN 11
+
+bool canFeed = true;
+int motorFeedSpeed = 100;
+
+// ----------------- END ANGLE MOTOR ----------------- //
+
+
 #define  DISTANCE_SENSOR_ECHO_PIN 7
 #define  DISTANCE_SENSOR_TRIGGER_PIN 8
 
@@ -38,9 +52,9 @@ int distanceSensorDistance;
 
 // ----------------- END DISTANCE ----------------- //
 
-#define SIGNAL_RED_LED_PIN 11
-#define SIGNAL_GREEN_LED_PIN 10
-#define SIGNAL_BLUE_LED_PIN 9
+#define SIGNAL_RED_LED_PIN A2
+#define SIGNAL_GREEN_LED_PIN A3
+#define SIGNAL_BLUE_LED_PIN 12
 
 // ----------------- END SIGNAL LEDS ----------------- //
 
@@ -52,14 +66,28 @@ void setup() {
  Timer1.attachInterrupt( timerISR );           // attach the ISR routine here
 
  setupDistanceSensor();
+ setupGyroSensor();
  setupMotors();
+ setupAngleMotor();
+ setupFeedMotor();
  setupSignalLeds();
  setupModeButton();
 }
 
 void loop() {
   checkMode();
+//  checkGyro();
 
+  if(!areMotorsTurning()) {
+    toggleMotor(LOW);
+  }
+
+  if (canFeed && areMotorsTurning()) {
+    startFeed(motorFeedSpeed); 
+  } else {
+    stopFeed();
+  }
+  
   if(isAnalogMode()) {    
     motor1Speed = map(analogRead(MOTOR_1_POTMETER), 0, 1024, 0, 255);
     motor2Speed = map(analogRead(MOTOR_2_POTMETER), 0, 1024, 0, 255); 
@@ -69,16 +97,66 @@ void loop() {
     if(isCommandSet() && hasCommandValue()) {
       if(getCommandState() == "motor1") {
         motor1Speed = getCommandValue().toInt();
+        resetCommandValue();
       }
 
       if(getCommandState() == "motor2") {
         motor2Speed = getCommandValue().toInt();
+        resetCommandValue();
+      }
+
+      if(getCommandState() == "feed") {
+        if(getCommandValue() == "stop") {
+          canFeed = false;
+        } else if (getCommandValue() == "start") {
+          canFeed = true;
+        } else {
+          motorFeedSpeed = getCommandValue().toInt();
+          resetCommandValue();
+        }
+      }
+
+      if(getCommandState() == "angle") {
+        if(getCommandValue() == "up") {
+          angleUp();
+        } else if(getCommandValue() == "down") {
+          angleDown();
+        } else {
+          angleStop();
+        }
       }
     }
   }
 
   analogWrite(MOTOR_1_PWM_PIN, motor1Speed);
   analogWrite(MOTOR_2_PWM_PIN, motor2Speed);
+}
+
+bool areMotorsTurning() {
+  return (motor1Speed > 40 || motor2Speed > 40);
+}
+
+void angleDown() {
+  analogWrite(MOTOR_ANGLE_UP_PWM_PIN, LOW);
+  analogWrite(MOTOR_ANGLE_DOWN_PWM_PIN, 255);
+}
+
+void angleUp() {
+  analogWrite(MOTOR_ANGLE_UP_PWM_PIN, 255);
+  analogWrite(MOTOR_ANGLE_DOWN_PWM_PIN, LOW);
+}
+
+void angleStop() {
+  analogWrite(MOTOR_ANGLE_UP_PWM_PIN, LOW);
+  analogWrite(MOTOR_ANGLE_DOWN_PWM_PIN, LOW);
+}
+
+void startFeed(int feedSpeed) {
+  analogWrite(MOTOR_FEED_PIN, feedSpeed);
+}
+
+void stopFeed() {
+  analogWrite(MOTOR_FEED_PIN, LOW);
 }
 
 // --------------------------
@@ -157,7 +235,9 @@ void isDangerClose() {
   distanceSensorDuration = pulseIn(DISTANCE_SENSOR_ECHO_PIN, HIGH);
   distanceSensorDistance = distanceSensorDuration * 0.034 / 2;
 
-  if (distanceSensorDistance < 10) {
+  Serial.println(distanceSensorDistance);
+
+  if (distanceSensorDistance < 70) {
     signalColor(255, 0, 0);
     
     toggleMotor(LOW); // toggle both motors
@@ -173,6 +253,15 @@ void setupMotors() {
  
   pinMode(MOTOR_1_PWM_PIN, OUTPUT);
   pinMode(MOTOR_2_PWM_PIN, OUTPUT);
+}
+
+void setupAngleMotor() {
+  pinMode(MOTOR_ANGLE_UP_PWM_PIN, OUTPUT);
+  pinMode(MOTOR_ANGLE_DOWN_PWM_PIN, OUTPUT);
+}
+
+void setupFeedMotor() {
+  pinMode(MOTOR_FEED_PIN, OUTPUT);
 }
 
 
